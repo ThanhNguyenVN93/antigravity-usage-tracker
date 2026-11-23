@@ -168,20 +168,28 @@ public static class UpdateLogic
     {
         string stagedDir = Path.GetDirectoryName(stagedExePath)!;
         string targetDir = Path.GetDirectoryName(currentExePath)!;
-        string oldPath = currentExePath + ".old";
+        string tempRoot = Path.GetDirectoryName(stagedDir)!;
+        string scriptPath = Path.Combine(tempRoot, "apply-update.ps1");
+        int pid = Environment.ProcessId;
 
-        CleanupOld(currentExePath);
-        File.Move(currentExePath, oldPath, overwrite: true);
+        string Esc(string s) => s.Replace("'", "''");
+        string script =
+            $"$ErrorActionPreference = 'SilentlyContinue'\r\n" +
+            $"Wait-Process -Id {pid} -Timeout 15\r\n" +
+            $"Start-Sleep -Milliseconds 300\r\n" +
+            $"Copy-Item -Path '{Esc(stagedDir)}\\*' -Destination '{Esc(targetDir)}' -Recurse -Force\r\n" +
+            $"Start-Process -FilePath '{Esc(currentExePath)}'\r\n" +
+            $"Start-Sleep -Seconds 2\r\n" +
+            $"Remove-Item -Path '{Esc(tempRoot)}' -Recurse -Force\r\n";
 
-        foreach (string srcFile in Directory.EnumerateFiles(stagedDir, "*", SearchOption.AllDirectories))
+        File.WriteAllText(scriptPath, script, Encoding.UTF8);
+
+        Process.Start(new ProcessStartInfo("powershell.exe")
         {
-            string rel = Path.GetRelativePath(stagedDir, srcFile);
-            string dstFile = Path.Combine(targetDir, rel);
-            Directory.CreateDirectory(Path.GetDirectoryName(dstFile)!);
-            File.Copy(srcFile, dstFile, overwrite: true);
-        }
-
-        Process.Start(new ProcessStartInfo(currentExePath) { UseShellExecute = true });
+            Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
+            CreateNoWindow = true,
+            UseShellExecute = false
+        });
     }
 }
 

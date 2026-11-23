@@ -400,9 +400,10 @@ public partial class App : System.Windows.Application
     {
         if (_checkingUpdate) return;
         _checkingUpdate = true;
+        bool userConfirmed = false;
         try
         {
-            var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 1, 1);
+            var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 1, 3);
             using var updater = new UpdateService(current);
             var release = await updater.CheckAsync();
             if (release == null)
@@ -419,6 +420,9 @@ public partial class App : System.Windows.Application
                 Lang.T("update.title"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (choice != MessageBoxResult.Yes) return;
 
+            userConfirmed = true;
+            _tray?.ShowBalloonTip(4000, Lang.T("update.title"), Lang.T("update.downloading"), System.Windows.Forms.ToolTipIcon.Info);
+
             string staged = await updater.DownloadAndStageAsync(release);
             if (Environment.ProcessPath is not string currentExe) return;
             UpdateLogic.ApplyStagedUpdate(staged, currentExe);
@@ -427,7 +431,7 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             ErrorLog.Write("CheckForUpdateAsync", ex);
-            if (!silent)
+            if (!silent || userConfirmed)
                 System.Windows.MessageBox.Show(
                     Lang.T("update.failed", ex.Message),
                     Lang.T("update.title"), MessageBoxButton.OK, MessageBoxImage.Warning);

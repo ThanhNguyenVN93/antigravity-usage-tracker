@@ -573,7 +573,7 @@ internal static class Program
 
         var en = Lang.Strings(Lang.En);
         var vi = Lang.Strings(Lang.Vi);
-        Check("update strings EN+VI", new[] { "tray.checkUpdate", "update.title", "update.available", "update.upToDate", "update.failed" }
+        Check("update strings EN+VI", new[] { "tray.checkUpdate", "update.title", "update.available", "update.downloading", "update.upToDate", "update.failed" }
             .All(k => en.ContainsKey(k) && vi.ContainsKey(k)));
     }
 
