@@ -29,6 +29,32 @@ public static class ScreenPlacement
         }
     }
 
+    // WPF work area (DIPs) of the screen containing the given DIP rectangle.
+    public static Rect WorkAreaForRect(Visual? visual, Rect dipRect)
+    {
+        try
+        {
+            double sx = 1, sy = 1;
+            if (visual != null)
+            {
+                var dpi = VisualTreeHelper.GetDpi(visual);
+                if (dpi.DpiScaleX > 0) sx = dpi.DpiScaleX;
+                if (dpi.DpiScaleY > 0) sy = dpi.DpiScaleY;
+            }
+            var pxRect = new System.Drawing.Rectangle(
+                (int)Math.Round(dipRect.Left * sx),
+                (int)Math.Round(dipRect.Top * sy),
+                (int)Math.Max(1, Math.Round(dipRect.Width * sx)),
+                (int)Math.Max(1, Math.Round(dipRect.Height * sy)));
+            var wa = System.Windows.Forms.Screen.FromRectangle(pxRect).WorkingArea;
+            return new Rect(wa.Left / sx, wa.Top / sy, wa.Width / sx, wa.Height / sy);
+        }
+        catch
+        {
+            return WorkAreaForCursor(visual);
+        }
+    }
+
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     [StructLayout(LayoutKind.Sequential)]

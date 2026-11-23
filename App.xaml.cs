@@ -239,7 +239,7 @@ public partial class App : System.Windows.Application
         bool hasBudget = s.Budget5hPercent != null || s.Budget7dPercent != null;
         if (!hasBudget && (quota?.Gemini5h != null || quota?.GeminiWeekly != null))
         {
-            pct = Math.Max(quota.Gemini5h?.UsedPercent ?? 0, quota.GeminiWeekly?.UsedPercent ?? 0);
+            pct = quota.Gemini5h?.UsedPercent ?? quota.GeminiWeekly?.UsedPercent ?? 0;
             hasBudget = true;
         }
         var green = System.Drawing.Color.FromArgb(0xA6, 0xE3, 0xA1);

@@ -70,17 +70,19 @@ public partial class MiniHudWindow : Window
     private bool TrySnapToClaude(AppConfig config)
     {
         if (!config.DockAboveClaude || !ScreenPlacement.TryGetClaudeHudRect(this, out var cr)) return false;
-        var wa = ScreenPlacement.WorkAreaForCursor(this);
-        double w = ActualWidth, h = ActualHeight;
-        double left = Math.Clamp(cr.Right - w, wa.Left + 8, Math.Max(wa.Left + 8, wa.Right - w - 8));
-        double top = cr.Top - h - 8;
-        if (top < wa.Top + 8)
+        var wa = ScreenPlacement.WorkAreaForRect(this, cr);
+        double w = ActualWidth > 0 ? ActualWidth : Width;
+        double h = ActualHeight > 0 ? ActualHeight : 280;
+        // Allow up to 6 DIPs on the edges so the 6px transparent shadow Margin aligns with Claude's HUD.
+        double left = Math.Clamp(cr.Right - w, wa.Left - 6, Math.Max(wa.Left - 6, wa.Right - w + 6));
+        double top = cr.Top - h - 4;
+        if (top < wa.Top + 4)
         {
-            left = Math.Max(wa.Left + 8, cr.Left - w - 8);
-            top = Math.Clamp(cr.Bottom - h, wa.Top + 8, Math.Max(wa.Top + 8, wa.Bottom - h - 8));
+            left = Math.Max(wa.Left + 8, cr.Left - w - 4);
+            top = Math.Clamp(cr.Bottom - h, wa.Top + 4, Math.Max(wa.Top + 4, wa.Bottom - h - 4));
         }
-        if (Math.Abs(Left - left) > 2 || double.IsNaN(Left)) Left = left;
-        if (Math.Abs(Top - top) > 2 || double.IsNaN(Top)) Top = top;
+        if (Math.Abs(Left - left) > 1 || double.IsNaN(Left)) Left = left;
+        if (Math.Abs(Top - top) > 1 || double.IsNaN(Top)) Top = top;
         return true;
     }
 
