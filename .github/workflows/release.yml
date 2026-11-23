@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $ver = $tag.TrimStart('v')
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+          echo "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Run SelfTest
+        run: dotnet run --project SelfTest/SelfTest.csproj --configuration Release
+
+      - name: Publish
+        run: |
+          dotnet publish AntigravityUsageTracker.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:Version="${{ steps.ver.outputs.version }}" `
+            -o publish
+
+      - name: Package zip
+        shell: pwsh
+        run: |
+          $dest = "publish\AntigravityUsageTracker.exe"
+          if (-not (Test-Path $dest)) {
+            Write-Error "Missing $dest in publish output"
+            exit 1
+          }
+          Remove-Item "publish\*.pdb" -Force -ErrorAction SilentlyContinue
+          $zipName = "AntigravityUsageTracker-v${{ steps.ver.outputs.version }}-win-x64.zip"
+          Compress-Archive -Path "publish\*" -DestinationPath $zipName
+          Write-Host "Zip: $zipName ($([Math]::Round((Get-Item $zipName).Length/1MB, 1)) MB)"
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $zipName = "AntigravityUsageTracker-v${{ steps.ver.outputs.version }}-win-x64.zip"
+          $hash = (Get-FileHash $zipName -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zipName" | Out-File -Encoding ascii "SHA256SUMS.txt"
+          Write-Host "SHA256: $hash"
+
+      - name: Build release notes
+        id: notes
+        shell: pwsh
+        run: |
+          $msg = git tag -l --format='%(contents)' "${{ steps.ver.outputs.tag }}"
+          if (-not $msg) { $msg = git log -1 --pretty=format:%s }
+          $msg | Out-File notes.txt -Encoding utf8
+          echo "file=notes.txt" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: "Antigravity Usage Tracker ${{ steps.ver.outputs.tag }}"
+          body_path: notes.txt
+          prerelease: ${{ contains(steps.ver.outputs.tag, '-') }}
+          files: |
+            AntigravityUsageTracker-v${{ steps.ver.outputs.version }}-win-x64.zip
+            SHA256SUMS.txt

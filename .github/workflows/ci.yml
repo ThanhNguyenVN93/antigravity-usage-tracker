@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore AntigravityUsageTracker.csproj
+
+      - name: Build
+        run: dotnet build AntigravityUsageTracker.csproj --configuration Release --no-restore
+
+      - name: Run SelfTest
+        run: dotnet run --project SelfTest/SelfTest.csproj --configuration Release

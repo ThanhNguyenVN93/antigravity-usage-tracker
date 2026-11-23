@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AntigravityUsageTracker.SelfTest</RootNamespace>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Models\*.cs" LinkBase="Models" />
+    <Compile Include="..\Services\*.cs" LinkBase="Services" Exclude="..\Services\ForegroundAppWatcherService.cs;..\Services\GlobalHotkeyService.cs" />
+  </ItemGroup>
+
+</Project>
