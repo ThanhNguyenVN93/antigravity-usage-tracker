@@ -13,6 +13,8 @@ public sealed class TranscriptWatcher : IDisposable
 
     public event Action? Changed;
 
+    public bool IsRunning => _fsw != null && !_disposed;
+
     public TranscriptWatcher(string? brainRoot = null, TimeSpan? debounce = null)
     {
         _root = brainRoot;
@@ -21,6 +23,8 @@ public sealed class TranscriptWatcher : IDisposable
 
     public bool Start()
     {
+        if (_disposed) return false;
+        if (_fsw != null) return true;
         try
         {
             var root = _root ?? TrackerPaths.BrainRoot;

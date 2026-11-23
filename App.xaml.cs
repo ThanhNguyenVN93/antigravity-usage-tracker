@@ -37,6 +37,7 @@ public partial class App : System.Windows.Application
     private AgyQuotaSnapshot? _quota;
     private DispatcherTimer? _quotaTimer;
     private bool _quotaFetching;
+    private bool _waitingForEnv;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -84,7 +85,12 @@ public partial class App : System.Windows.Application
         SetTrayIcon(System.Drawing.Color.FromArgb(0x89, 0xB4, 0xFA), "blue");
         _tray.Text = Lang.T("tray.tooltipEmpty");
 
-        if (_config.ShowHudOnStartup) _hud.Show();
+        bool hasAnyEnv = AgyQuotaService.FindAgyExe() != null
+            || Directory.Exists(TrackerPaths.BrainRoot)
+            || Directory.Exists(TrackerPaths.CliBrainRoot);
+        _waitingForEnv = !hasAnyEnv;
+
+        if (_config.ShowHudOnStartup && !_waitingForEnv) _hud.Show();
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_config.ScanIntervalSeconds) };
         _timer.Tick += (_, _) => _ = RefreshAsync();
@@ -201,6 +207,7 @@ public partial class App : System.Windows.Application
         _refreshing = true;
         try
         {
+            if (_watcher is { IsRunning: false }) _watcher.Start();
             var cfg = _config;
             var range = _statsRange;
             var (summary, history) = await Task.Run(() =>
@@ -225,6 +232,12 @@ public partial class App : System.Windows.Application
     private void ApplySummary(UsageSummary s)
     {
         _summary = s;
+        if (_waitingForEnv && (s.HasData || AgyQuotaService.FindAgyExe() != null))
+        {
+            _waitingForEnv = false;
+            if (_config.ShowHudOnStartup && _hud is { IsVisible: false, HiddenByUser: false })
+                ShowHudNoActivate();
+        }
         if (!string.IsNullOrWhiteSpace(s.LatestSessionId)) CompactService.WriteActiveSession(s.LatestSessionId);
         var quota = ActiveQuota;
         _hud?.Update(s, _config, quota);
