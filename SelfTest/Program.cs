@@ -54,6 +54,7 @@ internal static class Program
             TestWatcher();
             TestAgyQuota(dataDir);
             TestCompact(dataDir);
+            TestUpdate(dataDir);
             TestRealScan();
         }
         catch (Exception ex)
@@ -514,6 +515,65 @@ internal static class Program
         Check("compact strings EN+VI", new[] { "btn.compact", "tray.compactSession", "compact.title", "compact.running",
                 "compact.note", "compact.done", "compact.noSession", "compact.noAgy", "compact.failed",
                 "compact.failedDetail", "alert.kindArgon7d" }
+            .All(k => en.ContainsKey(k) && vi.ContainsKey(k)));
+    }
+
+    private static void TestUpdate(string dataDir)
+    {
+        Console.WriteLine("Update");
+        Check("ParseVersion v0.1.1", UpdateLogic.ParseVersion("v0.1.1") == new Version(0, 1, 1));
+        Check("ParseVersion invalid", UpdateLogic.ParseVersion("v0.1.1-beta") == null);
+        Check("IsNewer true", UpdateLogic.IsNewer(new Version(0, 1, 0, 0), new Version(0, 1, 1)));
+        Check("IsNewer false", !UpdateLogic.IsNewer(new Version(0, 1, 1, 0), new Version(0, 1, 1)));
+
+        const string prefix = UpdateOptions.DefaultAssetPrefix;
+        string json = $$"""
+            {
+              "tag_name": "v0.1.2",
+              "draft": false,
+              "prerelease": false,
+              "html_url": "https://github.com/ThanhNguyenVN93/antigravity-usage-tracker/releases/tag/v0.1.2",
+              "body": "Bug fixes",
+              "assets": [
+                { "name": "AntigravityUsageTracker-v0.1.2-win-x64.zip", "browser_download_url": "{{prefix}}v0.1.2/AntigravityUsageTracker-v0.1.2-win-x64.zip" },
+                { "name": "SHA256SUMS.txt", "browser_download_url": "{{prefix}}v0.1.2/SHA256SUMS.txt" }
+              ]
+            }
+            """;
+        var rel = UpdateLogic.ParseRelease(json, prefix);
+        Check("ParseRelease valid", rel != null && rel.Version == new Version(0, 1, 2) && rel.ZipName == "AntigravityUsageTracker-v0.1.2-win-x64.zip");
+        Check("ParseRelease untrusted url rejected", UpdateLogic.ParseRelease(json, "https://other.example/") == null);
+
+        string sha = new string('a', 64);
+        string sums = $"{sha}  AntigravityUsageTracker-v0.1.2-win-x64.zip\r\n";
+        Check("ParseSha256", UpdateLogic.ParseSha256(sums, "AntigravityUsageTracker-v0.1.2-win-x64.zip") == sha);
+        Check("ParseSha256 missing", UpdateLogic.ParseSha256(sums, "other.zip") == null);
+
+        string zipPath = Path.Combine(dataDir, "bad-update.zip");
+        using (var za = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create))
+        {
+            var e = za.CreateEntry("../evil.txt");
+            using var w = new StreamWriter(e.Open());
+            w.Write("x");
+        }
+        bool blocked = false;
+        try { UpdateLogic.ExtractExe(zipPath, Path.Combine(dataDir, "out-bad")); }
+        catch (InvalidDataException) { blocked = true; }
+        Check("ExtractExe blocks path traversal", blocked);
+
+        string goodZip = Path.Combine(dataDir, "good-update.zip");
+        using (var za = System.IO.Compression.ZipFile.Open(goodZip, System.IO.Compression.ZipArchiveMode.Create))
+        {
+            var e = za.CreateEntry(UpdateLogic.ExeName);
+            using var s = e.Open();
+            s.Write(new byte[] { (byte)'M', (byte)'Z', 0, 0 });
+        }
+        string extracted = UpdateLogic.ExtractExe(goodZip, Path.Combine(dataDir, "out-good"));
+        Check("ExtractExe valid MZ", File.Exists(extracted));
+
+        var en = Lang.Strings(Lang.En);
+        var vi = Lang.Strings(Lang.Vi);
+        Check("update strings EN+VI", new[] { "tray.checkUpdate", "update.title", "update.available", "update.upToDate", "update.failed" }
             .All(k => en.ContainsKey(k) && vi.ContainsKey(k)));
     }
 

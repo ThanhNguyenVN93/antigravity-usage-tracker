@@ -108,6 +108,8 @@ public partial class App : System.Windows.Application
 
         ApplyHotkeys();
         RefreshAll();
+        if (Environment.ProcessPath is string ep) UpdateLogic.CleanupOld(ep);
+        _ = CheckForUpdateAsync(silent: true);
     }
 
     private void RefreshAll()
@@ -366,6 +368,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add(langMenu);
 
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+        menu.Items.Add(Lang.T("tray.checkUpdate")).Click += (_, _) => _ = CheckForUpdateAsync(silent: false);
         menu.Items.Add(Lang.T("tray.exit")).Click += (_, _) => ExitApp();
 
         // refresh the Show/Hide label each time the menu opens
@@ -378,6 +381,49 @@ public partial class App : System.Windows.Application
     }
 
     private bool _compacting;
+    private bool _checkingUpdate;
+
+    private async Task CheckForUpdateAsync(bool silent)
+    {
+        if (_checkingUpdate) return;
+        _checkingUpdate = true;
+        try
+        {
+            var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 1, 1);
+            using var updater = new UpdateService(current);
+            var release = await updater.CheckAsync();
+            if (release == null)
+            {
+                if (!silent)
+                    System.Windows.MessageBox.Show(
+                        Lang.T("update.upToDate", UpdateLogic.Normalize(current).ToString(3)),
+                        Lang.T("update.title"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var choice = System.Windows.MessageBox.Show(
+                Lang.T("update.available", release.Tag, UpdateLogic.Normalize(current).ToString(3)),
+                Lang.T("update.title"), MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (choice != MessageBoxResult.Yes) return;
+
+            string staged = await updater.DownloadAndStageAsync(release);
+            if (Environment.ProcessPath is not string currentExe) return;
+            UpdateLogic.ApplyStagedUpdate(staged, currentExe);
+            ExitApp();
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("CheckForUpdateAsync", ex);
+            if (!silent)
+                System.Windows.MessageBox.Show(
+                    Lang.T("update.failed", ex.Message),
+                    Lang.T("update.title"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _checkingUpdate = false;
+        }
+    }
 
     private async Task RunCompactUiAsync()
     {
