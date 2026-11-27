@@ -41,6 +41,11 @@ jobs:
             -c Release `
             -r win-x64 `
             --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=none `
+            -p:DebugSymbols=false `
             -p:Version="${{ steps.ver.outputs.version }}" `
             -o publish
 
@@ -53,17 +58,24 @@ jobs:
             exit 1
           }
           Remove-Item "publish\*.pdb" -Force -ErrorAction SilentlyContinue
+          Copy-Item $dest "AntigravityUsageTracker.exe" -Force
           $zipName = "AntigravityUsageTracker-v${{ steps.ver.outputs.version }}-win-x64.zip"
           Compress-Archive -Path "publish\*" -DestinationPath $zipName
+          Write-Host "Exe: AntigravityUsageTracker.exe ($([Math]::Round((Get-Item 'AntigravityUsageTracker.exe').Length/1MB, 1)) MB)"
           Write-Host "Zip: $zipName ($([Math]::Round((Get-Item $zipName).Length/1MB, 1)) MB)"
 
       - name: Checksum
         shell: pwsh
         run: |
           $zipName = "AntigravityUsageTracker-v${{ steps.ver.outputs.version }}-win-x64.zip"
-          $hash = (Get-FileHash $zipName -Algorithm SHA256).Hash.ToLower()
-          "$hash  $zipName" | Out-File -Encoding ascii "SHA256SUMS.txt"
-          Write-Host "SHA256: $hash"
+          $zipHash = (Get-FileHash $zipName -Algorithm SHA256).Hash.ToLower()
+          $exeHash = (Get-FileHash "AntigravityUsageTracker.exe" -Algorithm SHA256).Hash.ToLower()
+          @(
+            "$zipHash  $zipName"
+            "$exeHash  AntigravityUsageTracker.exe"
+          ) | Out-File -Encoding ascii "SHA256SUMS.txt"
+          Write-Host "SHA256 (zip): $zipHash"
+          Write-Host "SHA256 (exe): $exeHash"
 
       - name: Build release notes
         id: notes
@@ -82,5 +94,6 @@ jobs:
           body_path: notes.txt
           prerelease: ${{ contains(steps.ver.outputs.tag, '-') }}
           files: |
+            AntigravityUsageTracker.exe
             AntigravityUsageTracker-v${{ steps.ver.outputs.version }}-win-x64.zip
             SHA256SUMS.txt
