@@ -39,7 +39,9 @@ public static class CompactService
             var psi = new ProcessStartInfo(agy)
             {
                 CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
                 UseShellExecute = false,
+                RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             };
@@ -52,6 +54,7 @@ public static class CompactService
 
             using var p = Process.Start(psi);
             if (p == null) return new CompactResult(false, "compact.failed", "start");
+            p.StandardInput.Close();
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(35));

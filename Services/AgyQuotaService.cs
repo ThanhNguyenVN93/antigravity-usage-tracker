@@ -75,7 +75,9 @@ public static class AgyQuotaService
             var psi = new ProcessStartInfo(exe)
             {
                 CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
                 UseShellExecute = false,
+                RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             };
@@ -86,6 +88,7 @@ public static class AgyQuotaService
 
             using var proc = Process.Start(psi);
             if (proc == null) return null;
+            proc.StandardInput.Close();
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(20));

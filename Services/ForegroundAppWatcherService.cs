@@ -47,7 +47,7 @@ public sealed class ForegroundAppWatcherService : IDisposable
 
     private static readonly HashSet<string> TerminalsAndEditors = new(StringComparer.OrdinalIgnoreCase)
     {
-        "code", "windowsterminal", "pwsh", "powershell", "cmd", "conhost", "wt"
+        "code", "windowsterminal", "pwsh", "powershell", "cmd", "wt"
     };
 
     private readonly DispatcherTimer _timer;
@@ -109,10 +109,7 @@ public sealed class ForegroundAppWatcherService : IDisposable
             || title.Contains("agy", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        if (HasDescendantProcess(pid, "agy.exe"))
-            return true;
-        try { return Process.GetProcessesByName("agy").Length > 0; }
-        catch { return false; }
+        return HasDescendantProcess(pid, "agy.exe");
     }
 
     private static bool HasDescendantProcess(int rootPid, string targetExe)
