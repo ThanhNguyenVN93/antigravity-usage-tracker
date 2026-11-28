@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -184,12 +183,10 @@ public static class UpdateLogic
 
         File.WriteAllText(scriptPath, script, Encoding.UTF8);
 
-        Process.Start(new ProcessStartInfo("powershell.exe")
-        {
-            Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
-            CreateNoWindow = true,
-            UseShellExecute = false
-        });
+        // CreateProcess does not search PATH for a bare file name, so resolve the full path.
+        string powershell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+        HiddenProcess.StartDetached(powershell,
+            ["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", scriptPath]);
     }
 }
 
