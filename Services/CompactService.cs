@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace AntigravityUsageTracker.Services;
 
@@ -7,6 +7,10 @@ public sealed record CompactResult(bool Ok, string MessageKey, string? Detail = 
 // Runs `agy --conversation <id> -p /compact` in the background and remembers the active session id.
 public static class CompactService
 {
+    // Session ids come from brain folder names (normally GUIDs); reject anything else before
+    // it reaches a child process's argument list.
+    private static readonly Regex SessionIdRx = new(@"^[A-Za-z0-9._-]+$", RegexOptions.Compiled);
+
     public static string ActiveSessionPath => Path.Combine(TrackerPaths.DataDir, "active-session.txt");
 
     public static void WriteActiveSession(string sessionId, string? path = null)
@@ -31,29 +35,15 @@ public static class CompactService
     public static async Task<CompactResult> RunCompactAsync(string sessionId, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(sessionId)) return new CompactResult(false, "compact.noSession");
+        sessionId = sessionId.Trim();
+        if (!SessionIdRx.IsMatch(sessionId)) return new CompactResult(false, "compact.failed", "invalid session id");
         try
         {
             string? agy = AgyQuotaService.FindAgyExe();
             if (agy == null) return new CompactResult(false, "compact.noAgy");
 
-            var psi = new ProcessStartInfo(agy)
-            {
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            psi.ArgumentList.Add("--conversation");
-            psi.ArgumentList.Add(sessionId.Trim());
-            psi.ArgumentList.Add("-p");
-            psi.ArgumentList.Add("/compact");
-            psi.ArgumentList.Add("--print-timeout");
-            psi.ArgumentList.Add("30s");
-
-            using var p = Process.Start(psi);
-            if (p == null) return new CompactResult(false, "compact.failed", "start");
+            using var p = HiddenProcess.StartRedirected(agy,
+                ["--conversation", sessionId, "-p", "/compact", "--print-timeout", "30s"]);
             p.StandardInput.Close();
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -69,7 +59,8 @@ public static class CompactService
             }
             catch (OperationCanceledException)
             {
-                try { p.Kill(true); } catch { }
+                p.Kill();
+                try { await Task.WhenAll(stdout, stderr); } catch { }
                 return new CompactResult(false, "compact.failed", "timeout");
             }
 

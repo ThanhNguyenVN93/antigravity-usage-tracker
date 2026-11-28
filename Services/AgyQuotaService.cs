@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using AntigravityUsageTracker.Models;
@@ -72,22 +71,7 @@ public static class AgyQuotaService
             var exe = FindAgyExe();
             if (exe == null) return null;
 
-            var psi = new ProcessStartInfo(exe)
-            {
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            psi.ArgumentList.Add("-p");
-            psi.ArgumentList.Add("/usage");
-            psi.ArgumentList.Add("--print-timeout");
-            psi.ArgumentList.Add("15s");
-
-            using var proc = Process.Start(psi);
-            if (proc == null) return null;
+            using var proc = HiddenProcess.StartRedirected(exe, ["-p", "/usage", "--print-timeout", "15s"]);
             proc.StandardInput.Close();
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -110,7 +94,8 @@ public static class AgyQuotaService
             }
             catch (OperationCanceledException)
             {
-                try { proc.Kill(true); } catch { }
+                proc.Kill();
+                try { await Task.WhenAll(stdout, stderr); } catch { }
                 return null;
             }
         }
